@@ -24,6 +24,22 @@ const PORT = process.env.PORT || 4000;
 // Enable 'trust proxy'
 app.set("trust proxy", 1);
 
+// CORS headers - allow only our frontend domain and handle preflight requests
+app.use((req, res, next) => {
+  res.header(
+    "Access-Control-Allow-Origin",
+    "https://sstigma-wealth-wise.vercel.app",
+  );
+  res.header("Access-Control-Allow-Private-Network", "true"); // This is the key!
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // Handle preflight (OPTIONS) requests
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(helmet());
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
