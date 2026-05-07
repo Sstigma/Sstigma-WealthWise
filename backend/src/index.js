@@ -31,7 +31,8 @@ app.use((req, res, next) => {
     "https://sstigma-wealth-wise.vercel.app",
     //"http://localhost:5173",
   );
-  res.header("Access-Control-Allow-Private-Network", "true"); // This is the key!
+  res.header("Access-Control-Allow-Private-Network", "true"); 
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   // Handle preflight (OPTIONS) requests
