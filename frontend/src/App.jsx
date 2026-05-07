@@ -4,7 +4,7 @@ import useAuthStore from './store/authStore';
 import AuthPage from './components/shared/AuthPage';
 import Layout from './components/shared/Layout';
 import DashboardPage from './components/dashboard/DashboardPage';
-import ExpensesPage from './components/expenses/ExpensesPage';
+import MoneyFlowPage from './components/moneyflow/MoneyFlowPage';
 import NetWorthPage from './components/networth/NetWorthPage';
 
 function PrivateRoute({ children }) {
@@ -25,29 +25,18 @@ function FullScreenLoader() {
 }
 
 export default function App() {
-  const init = useAuthStore((s) => s.init);
-
-  useEffect(() => {
-    const unsub = init();
-    return unsub;
-  }, [init]);
+  const init = useAuthStore(s => s.init);
+  useEffect(() => { const unsub = init(); return unsub; }, [init]);
 
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/auth" element={<AuthPage />} />
-        <Route
-          path="/"
-          element={
-            <PrivateRoute>
-              <Layout />
-            </PrivateRoute>
-          }
-        >
+        <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="expenses" element={<ExpensesPage />} />
-          <Route path="networth" element={<NetWorthPage />} />
+          <Route path="dashboard"   element={<DashboardPage />} />
+          <Route path="money-flow"  element={<MoneyFlowPage />} />
+          <Route path="networth"    element={<NetWorthPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -1,41 +1,29 @@
 const { validationResult } = require('express-validator');
-const expenseService = require('../services/expenseService');
+const svc = require('../services/expenseService');
 const { asyncHandler } = require('../middleware/errorHandler');
 
-const listExpenses = asyncHandler(async (req, res) => {
-  const { month } = req.query;
-  const expenses = await expenseService.listExpenses(req.user.uid, { month });
-  res.json({ data: expenses });
+// ── Accounts ──────────────────────────────────────────────────────────────────
+const listAccounts   = asyncHandler(async (req, res) => res.json({ data: await svc.listAccounts(req.user.uid) }));
+const createAccount  = asyncHandler(async (req, res) => { const errs = validationResult(req); if (!errs.isEmpty()) return res.status(400).json({ errors: errs.array() }); res.status(201).json({ data: await svc.createAccount(req.user.uid, req.body) }); });
+const updateAccount  = asyncHandler(async (req, res) => res.json({ data: await svc.updateAccount(req.user.uid, req.params.id, req.body) }));
+const deleteAccount  = asyncHandler(async (req, res) => { await svc.deleteAccount(req.user.uid, req.params.id); res.status(204).end(); });
+
+// ── Transactions ──────────────────────────────────────────────────────────────
+const listTransactions  = asyncHandler(async (req, res) => {
+  const { month, accountId, type } = req.query;
+  res.json({ data: await svc.listTransactions(req.user.uid, { month, accountId, type }) });
 });
-
-const createExpense = asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
-  const expense = await expenseService.createExpense(req.user.uid, req.body);
-  res.status(201).json({ data: expense });
+const createTransaction = asyncHandler(async (req, res) => {
+  const errs = validationResult(req);
+  if (!errs.isEmpty()) return res.status(400).json({ errors: errs.array() });
+  res.status(201).json({ data: await svc.createTransaction(req.user.uid, req.body) });
 });
-
-const updateExpense = asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
-  const expense = await expenseService.updateExpense(
-    req.user.uid,
-    req.params.id,
-    req.body
-  );
-  res.json({ data: expense });
+const updateTransaction = asyncHandler(async (req, res) => {
+  const errs = validationResult(req);
+  if (!errs.isEmpty()) return res.status(400).json({ errors: errs.array() });
+  res.json({ data: await svc.updateTransaction(req.user.uid, req.params.id, req.body) });
 });
+const deleteTransaction = asyncHandler(async (req, res) => { await svc.deleteTransaction(req.user.uid, req.params.id); res.status(204).end(); });
+const getMonthlySummary = asyncHandler(async (req, res) => res.json({ data: await svc.getMonthlySummary(req.user.uid) }));
 
-const deleteExpense = asyncHandler(async (req, res) => {
-  await expenseService.deleteExpense(req.user.uid, req.params.id);
-  res.status(204).end();
-});
-
-const getMonthlySummary = asyncHandler(async (req, res) => {
-  const summary = await expenseService.getMonthlySummary(req.user.uid);
-  res.json({ data: summary });
-});
-
-module.exports = { listExpenses, createExpense, updateExpense, deleteExpense, getMonthlySummary };
+module.exports = { listAccounts, createAccount, updateAccount, deleteAccount, listTransactions, createTransaction, updateTransaction, deleteTransaction, getMonthlySummary };

@@ -6,119 +6,117 @@ import {
 } from 'recharts';
 import useExpenseStore from '../../store/expenseStore';
 import useInvestmentStore from '../../store/investmentStore';
-import { formatCurrency, formatMonth, CATEGORY_COLORS, currentYearMonth } from '../../utils/formatters';
+import {
+  formatCurrency, formatMonth,
+  CATEGORY_COLORS, currentYearMonth,
+} from '../../utils/formatters';
 
 export default function DashboardPage() {
-  const { summary, fetchSummary, expenses, fetchExpenses } = useExpenseStore();
+  const { summary, transactions, fetchSummary, fetchTransactions, fetchAccounts } = useExpenseStore();
   const { netWorth, fetchNetWorth, quotes, fetchLiveQuotes } = useInvestmentStore();
 
   useEffect(() => {
+    fetchAccounts();
     fetchSummary();
-    fetchExpenses(currentYearMonth());
+    fetchTransactions(currentYearMonth());
     fetchNetWorth();
     fetchLiveQuotes();
   }, []);
 
-  const currentMonth = currentYearMonth();
-  const thisMonthSummary = summary.find((s) => s.month === currentMonth);
-  const totalSpentThisMonth = thisMonthSummary?.total ?? 0;
+  const currentMonth     = currentYearMonth();
+  const thisMonthData    = summary.find(s => s.month === currentMonth);
+  const totalIncome      = thisMonthData?.totalIncome   ?? 0;
+  const totalExpenses    = thisMonthData?.totalExpenses ?? 0;
+  const netPL            = thisMonthData?.netPL         ?? 0;
+  const totalInvestments = quotes.reduce((s, q) => s + (q.marketValue ?? q.costBasis), 0);
 
-  // Category pie data from this month
-  const pieData = thisMonthSummary
-    ? Object.entries(thisMonthSummary.byCategory).map(([name, value]) => ({ name, value }))
+  const pieData = thisMonthData
+    ? Object.entries(thisMonthData.byCategory)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 6)
     : [];
 
-  // Area chart: last 6 months spending
-  const areaData = summary.slice(-6).map((s) => ({
-    month: formatMonth(s.month),
-    Expenses: s.total,
+  const areaData = summary.slice(-6).map(s => ({
+    month:    formatMonth(s.month),
+    Income:   s.totalIncome,
+    Expenses: s.totalExpenses,
   }));
-
-  const totalInvestments = quotes.reduce((s, q) => s + (q.marketValue ?? q.costBasis), 0);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="font-display text-3xl text-text-primary">Dashboard</h1>
         <p className="text-text-secondary text-sm mt-1">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          {new Date().toLocaleDateString('en-SG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          label="Net Worth"
-          value={formatCurrency(netWorth?.totalNetWorth)}
-          sub="cash + investments"
-          accent
-        />
-        <StatCard
-          label="Portfolio Value"
-          value={formatCurrency(totalInvestments)}
-          sub={`${quotes.length} holding${quotes.length !== 1 ? 's' : ''}`}
-        />
-        <StatCard
-          label={`Spent — ${formatMonth(currentMonth)}`}
-          value={formatCurrency(totalSpentThisMonth)}
-          sub={`${expenses.length} transactions`}
-          negative={totalSpentThisMonth > 0}
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="stat-card border-accent/30 bg-accent/5">
+          <span className="stat-label">Net Worth</span>
+          <span className="stat-value text-accent-light">{formatCurrency(netWorth?.totalNetWorth)}</span>
+          <span className="text-xs text-text-muted">cash + investments</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">Portfolio</span>
+          <span className="stat-value">{formatCurrency(totalInvestments)}</span>
+          <span className="text-xs text-text-muted">{quotes.length} holdings</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">Income — {formatMonth(currentMonth)}</span>
+          <span className="stat-value text-green">{formatCurrency(totalIncome)}</span>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">Expenses — {formatMonth(currentMonth)}</span>
+          <span className="stat-value text-red">{formatCurrency(totalExpenses)}</span>
+          <span className={`text-xs font-mono ${netPL >= 0 ? 'text-green' : 'text-red'}`}>Net {formatCurrency(netPL)}</span>
+        </div>
       </div>
 
-      {/* Charts row */}
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Spending trend */}
         <div className="card lg:col-span-2">
-          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest mb-4">
-            Monthly Spending Trend
-          </h2>
+          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest mb-4">Income vs Expenses</h2>
           {areaData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={areaData}>
                 <defs>
+                  <linearGradient id="incGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#34d399" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                  </linearGradient>
                   <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#7c6aff" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#7c6aff" stopOpacity={0} />
+                    <stop offset="5%"  stopColor="#f87171" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="month" tick={{ fill: '#9090b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#9090b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a26', border: '1px solid #252535', borderRadius: 12 }}
-                  labelStyle={{ color: '#f0f0ff', fontSize: 12 }}
-                  itemStyle={{ color: '#a89aff' }}
-                  formatter={(v) => [formatCurrency(v), 'Expenses']}
-                />
-                <Area type="monotone" dataKey="Expenses" stroke="#7c6aff" strokeWidth={2} fill="url(#expGrad)" />
+                <YAxis tick={{ fill: '#9090b8', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                <Tooltip contentStyle={{ backgroundColor: '#1a1a26', border: '1px solid #252535', borderRadius: 12 }} formatter={(v, name) => [formatCurrency(v), name]} />
+                <Legend formatter={v => <span style={{ color: '#9090b8', fontSize: 11 }}>{v}</span>} />
+                <Area type="monotone" dataKey="Income"   stroke="#34d399" strokeWidth={2} fill="url(#incGrad)" />
+                <Area type="monotone" dataKey="Expenses" stroke="#f87171" strokeWidth={2} fill="url(#expGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[220px] flex items-center justify-center text-text-muted text-sm">
-              No spending data yet — <Link to="/expenses" className="text-accent ml-1">add expenses</Link>
+              No data yet — <Link to="/money-flow" className="text-accent ml-1">add transactions</Link>
             </div>
           )}
         </div>
 
-        {/* Category breakdown */}
         <div className="card">
-          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest mb-4">
-            This Month by Category
-          </h2>
+          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest mb-4">Spending by Category</h2>
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
-                  {pieData.map((entry) => (
-                    <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] || '#9090b8'} />
-                  ))}
+                  {pieData.map(entry => <Cell key={entry.name} fill={CATEGORY_COLORS[entry.name] || '#9090b8'} />)}
                 </Pie>
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a26', border: '1px solid #252535', borderRadius: 12 }}
-                  formatter={(v) => [formatCurrency(v)]}
-                />
-                <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ color: '#9090b8', fontSize: 11 }}>{v}</span>} />
+                <Tooltip contentStyle={{ backgroundColor: '#1a1a26', border: '1px solid #252535', borderRadius: 12 }} formatter={v => [formatCurrency(v)]} />
+                <Legend iconType="circle" iconSize={8} formatter={v => <span style={{ color: '#9090b8', fontSize: 11 }}>{v}</span>} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -127,38 +125,36 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent expenses + Top holdings */}
+      {/* Recent transactions + Holdings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Recent expenses */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest">Recent Expenses</h2>
-            <Link to="/expenses" className="text-xs text-accent hover:text-accent-light transition-colors">View all →</Link>
+            <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest">Recent Transactions</h2>
+            <Link to="/money-flow" className="text-xs text-accent hover:text-accent-light transition-colors">View all →</Link>
           </div>
-          {expenses.length > 0 ? (
+          {transactions.length > 0 ? (
             <div className="space-y-3">
-              {expenses.slice(0, 5).map((e) => (
-                <div key={e.id} className="flex items-center justify-between">
+              {transactions.slice(0, 6).map(tx => (
+                <div key={tx.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: CATEGORY_COLORS[e.category] || '#9090b8' }}
-                    />
+                    <div className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: tx.type === 'income' ? '#34d399' : (CATEGORY_COLORS[tx.category] || '#f87171') }} />
                     <div>
-                      <p className="text-sm text-text-primary">{e.detail}</p>
-                      <p className="text-xs text-text-muted">{e.category}</p>
+                      <p className="text-sm text-text-primary">{tx.detail}</p>
+                      <p className="text-xs text-text-muted">{tx.category || tx.type}</p>
                     </div>
                   </div>
-                  <span className="text-sm font-mono text-red">{formatCurrency(e.amount)}</span>
+                  <span className={`text-sm font-mono ${tx.type === 'income' ? 'text-green' : 'text-red'}`}>
+                    {tx.type === 'income' ? '+' : '−'}{formatCurrency(tx.amount)}
+                  </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-text-muted text-sm text-center py-8">No expenses this month</p>
+            <p className="text-text-muted text-sm text-center py-8">No transactions this month</p>
           )}
         </div>
 
-        {/* Top holdings */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest">Portfolio Holdings</h2>
@@ -166,7 +162,7 @@ export default function DashboardPage() {
           </div>
           {quotes.length > 0 ? (
             <div className="space-y-3">
-              {quotes.slice(0, 5).map((q) => (
+              {quotes.slice(0, 5).map(q => (
                 <div key={q.id} className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-text-primary font-mono">{q.ticker}</p>
@@ -188,16 +184,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, sub, accent, negative }) {
-  return (
-    <div className={`stat-card ${accent ? 'border-accent/30 bg-accent/5' : ''}`}>
-      <span className="stat-label">{label}</span>
-      <span className={`stat-value ${accent ? 'text-accent-light' : negative ? 'text-red' : ''}`}>{value}</span>
-      {sub && <span className="text-xs text-text-muted">{sub}</span>}
     </div>
   );
 }
