@@ -28,8 +28,8 @@ app.set("trust proxy", 1);
 app.use((req, res, next) => {
   res.header(
     "Access-Control-Allow-Origin",
-    //"https://sstigma-wealth-wise.vercel.app",
-    "http://localhost:5173",
+    "https://sstigma-wealth-wise.vercel.app",
+    //"http://localhost:5173",
   );
   res.header("Access-Control-Allow-Private-Network", "true"); // This is the key!
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
