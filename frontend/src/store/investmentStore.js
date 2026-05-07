@@ -8,6 +8,7 @@ const useInvestmentStore = create((set) => ({
   networthHistory: [],
   loading: false,
   quotesLoading: false,
+  quotesError: null,
   error: null,
 
   fetchInvestments: async () => {
@@ -21,13 +22,13 @@ const useInvestmentStore = create((set) => ({
   },
 
   fetchLiveQuotes: async () => {
-    set({ quotesLoading: true });
+    set({ quotesLoading: true, quotesError: null });
     try {
       const res = await api.get('/investments/quotes');
-      set({ quotes: res.data.data, quotesLoading: false });
+      set({ quotes: res.data.data, quotesLoading: false, quotesError: null });
     } catch (err) {
-      set({ quotesLoading: false });
-      console.error('Failed to fetch quotes', err.message);
+      set({ quotesLoading: false, quotesError: err.message });
+      console.error('Failed to fetch quotes:', err.message);
     }
   },
 

@@ -12,7 +12,7 @@ import {
 
 export default function NetWorthPage() {
   const {
-    quotes, quotesLoading, fetchLiveQuotes,
+    quotes, quotesLoading, quotesError, fetchLiveQuotes,
     investments, fetchInvestments,
     netWorth, fetchNetWorth,
     networthHistory, fetchNetWorthHistory,
@@ -94,7 +94,17 @@ export default function NetWorthPage() {
         </div>
       </div>
 
-      {/* Top stat cards */}
+      {/* Quotes error banner */}
+      {quotesError && (
+        <div className="px-4 py-3 bg-red/10 border border-red/30 rounded-xl text-sm flex items-center justify-between gap-3">
+          <span className="text-red">
+            ⚠ Could not load live prices: {quotesError}
+          </span>
+          <button onClick={handleRefresh} className="text-xs text-red hover:text-red/80 underline whitespace-nowrap">
+            Retry
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Net Worth"
@@ -118,9 +128,11 @@ export default function NetWorthPage() {
           negative={totalUnrealizedPnL < 0}
         />
         <StatCard
-          label="Cash (net outflows)"
+          label="Cash Balance"
           value={formatCurrency(netWorth?.cash)}
-          sub="total expenses tracked"
+          sub="income minus expenses"
+          positive={(netWorth?.cash ?? 0) >= 0}
+          negative={(netWorth?.cash ?? 0) < 0}
         />
       </div>
 
@@ -196,9 +208,10 @@ export default function NetWorthPage() {
           Holdings
         </h2>
 
-        {quotesLoading && investments.length === 0 ? (
-          <div className="py-12 flex justify-center">
+        {quotesLoading ? (
+          <div className="py-12 flex flex-col items-center gap-3">
             <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+            <p className="text-text-muted text-xs">Fetching live prices…</p>
           </div>
         ) : quotes.length === 0 ? (
           <EmptyState
