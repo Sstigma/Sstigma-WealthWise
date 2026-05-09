@@ -1,25 +1,72 @@
-// backend/src/services/investmentService.js
-
-const YahooFinance = require("yahoo-finance2").default;
+const finnhub = require("finnhub");
 const { getFirestore } = require("../config/firebase");
 const { Timestamp } = require("firebase-admin/firestore");
 
-// v3: instantiate once as a module-level singleton
-const yf = new YahooFinance();
+// ── Finnhub client (singleton) ────────────────────────────────────────────────
+const finnhubClient = (() => {
+  const apiClient = finnhub.ApiClient.instance;
+  apiClient.authentications["api_key"].apiKey =
+    process.env.FINNHUB_API_KEY || "";
+  return new finnhub.DefaultApi();
+})();
 
+/**
+ * Promisified wrapper around finnhub's callback-based quote API.
+ * Returns { c: currentPrice, dp: dayChangePct, pc: previousClose } or null on error.
+ */
+function fetchQuote(ticker) {
+  return new Promise((resolve) => {
+    finnhubClient.quote(ticker, (error, data) => {
+      if (error || !data || data.c === 0) {
+        console.warn(
+          `Finnhub quote failed for ${ticker}:`,
+          error?.message ?? "no data",
+        );
+        resolve(null);
+      } else {
+        resolve(data);
+      }
+    });
+  });
+}
+
+/**
+ * Finnhub symbol search — returns up to `limit` equity/ETF matches.
+ */
+function searchSymbols(query, limit = 5) {
+  return new Promise((resolve) => {
+    finnhubClient.symbolSearch(query, (error, data) => {
+      if (error || !data?.result) {
+        resolve([]);
+        return;
+      }
+      const results = data.result
+        .filter((r) => r.type === "Common Stock" || r.type === "ETP") // ETP = ETF
+        .slice(0, limit)
+        .map((r) => ({
+          symbol: r.symbol,
+          shortName: r.description,
+          exchange: r.displaySymbol,
+          type: r.type,
+        }));
+      resolve(results);
+    });
+  });
+}
+
+// ── Firestore helpers ─────────────────────────────────────────────────────────
 const COLLECTION = "investments";
 
 function userInvestmentsRef(uid) {
   return getFirestore().collection("users").doc(uid).collection(COLLECTION);
 }
 
-/** List all investments for a user. */
+// ── CRUD ──────────────────────────────────────────────────────────────────────
 async function listInvestments(uid) {
   const snap = await userInvestmentsRef(uid).orderBy("addedAt", "desc").get();
   return snap.docs.map(docToInvestment);
 }
 
-/** Add an investment holding. */
 async function createInvestment(uid, data) {
   const ref = userInvestmentsRef(uid).doc();
   const payload = {
@@ -37,23 +84,19 @@ async function createInvestment(uid, data) {
   };
 }
 
-/** Update shares or avgCost for an investment. */
 async function updateInvestment(uid, investmentId, data) {
   const ref = userInvestmentsRef(uid).doc(investmentId);
   const snap = await ref.get();
   if (!snap.exists)
     throw Object.assign(new Error("Investment not found"), { status: 404 });
-
   const updates = { updatedAt: Timestamp.now() };
   if (data.shares !== undefined) updates.shares = Number(data.shares);
   if (data.avgCost !== undefined) updates.avgCost = Number(data.avgCost);
   if (data.name !== undefined) updates.name = data.name;
-
   await ref.update(updates);
   return { id: investmentId, ...snap.data(), ...updates };
 }
 
-/** Remove an investment. */
 async function deleteInvestment(uid, investmentId) {
   const ref = userInvestmentsRef(uid).doc(investmentId);
   const snap = await ref.get();
@@ -63,8 +106,8 @@ async function deleteInvestment(uid, investmentId) {
 }
 
 /**
- * Fetch live quotes for all of a user's tickers via Yahoo Finance v3.
- * Returns enriched holdings with current price, day change, market value, and P&L.
+ * Fetch live quotes for all holdings via Finnhub.
+ * Requests are sequential with a 100ms gap to respect the 30 req/s hard limit.
  */
 async function getLiveQuotes(uid) {
   const investments = await listInvestments(uid);
@@ -72,27 +115,16 @@ async function getLiveQuotes(uid) {
 
   const tickers = [...new Set(investments.map((i) => i.ticker))];
 
-  // v3: use the yf instance, same .quote() method signature as v2
-  const quoteResults = await Promise.allSettled(
-    tickers.map((ticker) => yf.quote(ticker)),
-  );
-
+  // Sequential with small delay — avoids Finnhub's 30 req/s burst limit
   const quoteMap = {};
-  tickers.forEach((ticker, idx) => {
-    const result = quoteResults[idx];
-    if (result.status === "fulfilled" && result.value) {
-      quoteMap[ticker] = result.value;
-    } else {
-      console.warn(
-        `Failed to fetch quote for ${ticker}:`,
-        result.reason?.message,
-      );
-    }
-  });
+  for (const ticker of tickers) {
+    quoteMap[ticker] = await fetchQuote(ticker);
+    if (tickers.length > 1) await sleep(120); // 120ms gap between requests
+  }
 
   return investments.map((inv) => {
-    const quote = quoteMap[inv.ticker];
-    const currentPrice = quote?.regularMarketPrice ?? null;
+    const q = quoteMap[inv.ticker];
+    const currentPrice = q?.c ?? null;
     const marketValue = currentPrice != null ? currentPrice * inv.shares : null;
     const costBasis = inv.avgCost * inv.shares;
     const unrealizedPnL = marketValue != null ? marketValue - costBasis : null;
@@ -108,25 +140,34 @@ async function getLiveQuotes(uid) {
       costBasis,
       unrealizedPnL,
       unrealizedPnLPct,
-      dayChangePct: quote?.regularMarketChangePercent ?? null,
-      currency: quote?.currency ?? "USD",
-      shortName: quote?.shortName ?? inv.name,
+      dayChangePct: q?.dp ?? null, // Finnhub: dp = day change %
+      previousClose: q?.pc ?? null,
+      currency: "SGD", // Finnhub free tier doesn't return currency; default SGD
+      shortName: inv.name,
     };
   });
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+async function searchTickers(query, limit = 5) {
+  if (!query || query.trim().length < 1) return [];
+  return searchSymbols(query.trim(), limit);
+}
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function docToInvestment(doc) {
-  const data = doc.data();
+  const d = doc.data();
   return {
     id: doc.id,
-    ticker: data.ticker,
-    name: data.name,
-    shares: data.shares,
-    avgCost: data.avgCost,
-    addedAt: data.addedAt?.toDate?.()?.toISOString?.() ?? null,
+    ticker: d.ticker,
+    name: d.name,
+    shares: d.shares,
+    avgCost: d.avgCost,
+    addedAt: d.addedAt?.toDate?.()?.toISOString?.() ?? null,
   };
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 module.exports = {
@@ -135,4 +176,5 @@ module.exports = {
   updateInvestment,
   deleteInvestment,
   getLiveQuotes,
+  searchTickers,
 };
