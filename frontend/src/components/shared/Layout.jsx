@@ -4,7 +4,7 @@ import useAuthStore from '../../store/authStore';
 const NAV = [
   { to: '/dashboard',  label: 'Dashboard',   icon: '⬡' },
   { to: '/money-flow', label: 'Money Flow',   icon: '⇄' },
-  { to: '/networth',   label: 'Net Worth',    icon: '◈' },
+  { to: '/networth',   label: 'Portfolio',    icon: '◈' },
 ];
 
 export default function Layout() {

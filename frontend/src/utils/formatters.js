@@ -54,3 +54,63 @@ export const CATEGORY_COLORS = {
   Interest: '#60a5fa', Rental: '#a78bfa', Business: '#38bdf8',
   Gift: '#f472b6', 'Other Income': '#9090b8',
 };
+
+/**
+ * Returns an array of the last N months as YYYY-MM strings,
+ * always ending with the current month, padded with zeros where no data exists.
+ *
+ * @param {Array}  summary   - array of { month, totalIncome, totalExpenses, netPL, ... }
+ * @param {number} months    - how many months to show (default 6)
+ * @returns {Array} sorted ascending, every month present
+ */
+export function buildMonthlyChartData(summary, months = 6) {
+  // Build a lookup from the real summary
+  const lookup = {};
+  summary.forEach(s => { lookup[s.month] = s; });
+
+  const result = [];
+  const now    = new Date();
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const s   = lookup[key];
+    result.push({
+      month:         formatMonth(key),
+      rawMonth:      key,
+      Income:        s?.totalIncome   ?? 0,
+      Expenses:      s?.totalExpenses ?? 0,
+      'Net P&L':     s?.netPL         ?? 0,
+      totalNetWorth: 0, // filled separately for networth chart
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Same idea for net worth history snapshots.
+ * Merges saved snapshots into a 6-month window, filling gaps with 0.
+ */
+export function buildNetworthChartData(history, months = 6) {
+  const lookup = {};
+  history.forEach(h => { lookup[h.month] = h; });
+
+  const result = [];
+  const now    = new Date();
+
+  for (let i = months - 1; i >= 0; i--) {
+    const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const h   = lookup[key];
+    result.push({
+      month:            formatMonth(key),
+      rawMonth:         key,
+      'Net Worth':      h?.totalNetWorth    ?? 0,
+      Investments:      h?.investmentsValue ?? 0,
+      Cash:             h?.cash            ?? 0,
+    });
+  }
+
+  return result;
+}

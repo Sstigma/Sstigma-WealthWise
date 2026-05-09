@@ -10,7 +10,7 @@ import EmptyState from '../shared/EmptyState';
 import {
   formatCurrency, formatDate, formatMonth,
   EXPENSE_CATEGORIES, INCOME_CATEGORIES, CATEGORY_COLORS,
-  ACCOUNT_TYPES, currentYearMonth,
+  ACCOUNT_TYPES, currentYearMonth, buildMonthlyChartData,
 } from '../../utils/formatters';
 
 const ACCOUNT_TYPE_ICONS = { bank: '🏦', savings: '🏧', cash: '💵', credit: '💳' };
@@ -59,12 +59,7 @@ export default function MoneyFlowPage() {
   );
 
   // Trend chart: last 6 months income vs expenses
-  const trendData = summary.slice(-6).map(s => ({
-    month:    formatMonth(s.month),
-    Income:   s.totalIncome,
-    Expenses: s.totalExpenses,
-    'Net P&L': s.netPL,
-  }));
+  const trendData = buildMonthlyChartData(summary, 6);
 
   // Month options
   const monthOptions = Array.from(
@@ -163,8 +158,7 @@ export default function MoneyFlowPage() {
       )}
 
       {/* ── Trend chart ─────────────────────────────────────────────────────── */}
-      {trendData.length > 0 && (
-        <div className="card">
+      <div className="card">
           <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest mb-4">
             Income vs Expenses — Last 6 Months
           </h2>
@@ -172,7 +166,7 @@ export default function MoneyFlowPage() {
             <BarChart data={trendData} barGap={4}>
               <XAxis dataKey="month" tick={{ fill: '#9090b8', fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#9090b8', fontSize: 11 }} axisLine={false} tickLine={false}
-                tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(1)}k` : `$${v}`} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#1a1a26', border: '1px solid #252535', borderRadius: 12 }}
                 formatter={(v, name) => [formatCurrency(v), name]}
@@ -183,7 +177,6 @@ export default function MoneyFlowPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-      )}
 
       {/* ── Tabs: Transactions | Accounts ───────────────────────────────────── */}
       <div className="flex gap-1 p-1 bg-surface rounded-xl w-fit">
