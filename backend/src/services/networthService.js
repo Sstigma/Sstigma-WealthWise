@@ -1,10 +1,13 @@
-const { getFirestore } = require('../config/firebase');
-const { Timestamp } = require('firebase-admin/firestore');
-const { getMonthlySummary } = require('./expenseService');
-const { getLiveQuotes } = require('./investmentService');
+const { getFirestore } = require("../config/firebase");
+const { Timestamp } = require("firebase-admin/firestore");
+const { getMonthlySummary } = require("./expenseService");
+const { getLiveQuotes } = require("./investmentService");
 
 function userNetworthRef(uid) {
-  return getFirestore().collection('users').doc(uid).collection('netWorthSnapshots');
+  return getFirestore()
+    .collection("users")
+    .doc(uid)
+    .collection("netWorthSnapshots");
 }
 
 /**
@@ -19,7 +22,10 @@ async function getCurrentNetWorth(uid) {
     getMonthlySummary(uid),
   ]);
 
-  const investmentsValue = quotes.reduce((sum, q) => sum + (q.marketValue ?? q.costBasis), 0);
+  const investmentsValue = quotes.reduce(
+    (sum, q) => sum + (q.marketValue ?? q.costBasis),
+    0,
+  );
   const totalExpenses = monthlySummaries.reduce((sum, m) => sum + m.total, 0);
 
   // Cash proxy: negative of all tracked expenses (net outflows)
@@ -61,7 +67,7 @@ async function saveSnapshot(uid, { cash, investmentsValue, month }) {
  * Return historical snapshots sorted ascending.
  */
 async function getHistory(uid) {
-  const snap = await userNetworthRef(uid).orderBy('month', 'asc').get();
+  const snap = await userNetworthRef(uid).orderBy("month", "asc").get();
   return snap.docs.map((doc) => {
     const data = doc.data();
     return {
