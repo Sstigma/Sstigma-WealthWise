@@ -48,7 +48,7 @@ async function getCurrentNetWorth(uid) {
 }
 
 /**
- * Save a monthly net worth snapshot (call at end of month or on-demand).
+ * Save a monthly net worth snapshot (call at end of month).
  */
 async function saveSnapshot(uid, { cash, investmentsValue, month }) {
   const ref = userNetworthRef(uid).doc(month);

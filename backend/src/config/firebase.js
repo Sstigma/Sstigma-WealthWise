@@ -4,8 +4,7 @@ let app;
 
 /**
  * Initialise Firebase Admin SDK (singleton).
- * Credentials are read from environment variables so no JSON file is needed
- * in the repository — safe for public repos.
+ * Credentials are read from environment variables so no JSON file is needed in the repository — safe for public repos.
  */
 function initFirebase() {
   if (app) return app;

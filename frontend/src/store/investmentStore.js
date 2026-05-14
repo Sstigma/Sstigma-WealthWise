@@ -94,8 +94,6 @@ const useInvestmentStore = create((set, get) => ({
   },
 
   /**
-   * Auto-snapshot logic (Option B).
-   *
    * Called from the Dashboard after quotes + summary + history are all loaded.
    * Checks the previous month — if no snapshot exists yet, silently saves one.
    * Uses the live portfolio value at time of call (best approximation of previous

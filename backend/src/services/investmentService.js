@@ -107,7 +107,6 @@ async function deleteInvestment(uid, investmentId) {
 
 /**
  * Fetch live quotes for all holdings via Finnhub.
- * Requests are sequential with a 100ms gap to respect the 30 req/s hard limit.
  */
 async function getLiveQuotes(uid) {
   const investments = await listInvestments(uid);
@@ -140,9 +139,9 @@ async function getLiveQuotes(uid) {
       costBasis,
       unrealizedPnL,
       unrealizedPnLPct,
-      dayChangePct: q?.dp ?? null, // Finnhub: dp = day change %
+      dayChangePct: q?.dp ?? null, 
       previousClose: q?.pc ?? null,
-      currency: "SGD", // Finnhub free tier doesn't return currency; default SGD
+      currency: "SGD", 
       shortName: inv.name,
     };
   });
