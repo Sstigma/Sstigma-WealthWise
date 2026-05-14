@@ -1,164 +1,256 @@
-# WealthWise 💰
+# 💰 WealthWise
 
-A full-stack personal finance tracker with expense management and net worth dashboard.
+A full-stack personal finance tracker built for Singapore. Track income and expenses across multiple bank accounts, monitor your stock portfolio with live prices, and watch your net worth grow over time — all in SGD.
+
+---
+
+## Features
+
+### Dashboard
+- Live **Net Worth** = cumulative cash balance + live portfolio value
+- **Net Worth trend chart** over the last 6 months, auto-filled as you use the app
+- Spending breakdown by category (donut chart)
+- Recent transactions and portfolio holdings at a glance
+- **Auto-snapshot**: on your first visit each month the previous month's portfolio value is silently recorded so your history fills in automatically
+
+### Money Flow
+- Track **income and expenses** together in one place
+- Add multiple **bank accounts** (DBS, OCBC, cash, credit cards, etc.)
+- Per-account **P&L breakdown** — income, expenses and net per account per month
+- Filter transactions by month, account, and type
+- Income vs Expenses bar chart over the last 6 months
+- Monthly summary strip with clickable navigation
+
+### Portfolio
+- Add stock and ETF holdings by ticker symbol (SGX `.SI` and US markets supported)
+- **Live prices** via Finnhub API
+- Holdings table with current price, market value, unrealized P&L and day change
+- **Portfolio performance chart** — last 6 months, current month always live
+- Portfolio allocation bar showing weight per holding
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, Vite, TailwindCSS, Recharts |
-| Backend | Node.js, Express, Yahoo Finance Library |
-| Database | Firebase Firestore |
-| Auth | Firebase Authentication |
-| Deployment | Vercel (frontend), Render (backend) |
+| Frontend | React 18, Vite, TailwindCSS, Recharts, Zustand |
+| Backend | Node.js 22, Express 4 |
+| Database & Auth | Firebase Firestore + Firebase Authentication |
+| Stock Prices | Finnhub API (free tier) |
+| Frontend Hosting | Vercel |
+| Backend Hosting | Render |
+
+---
 
 ## Project Structure
 
+```
 wealthwise/
-├── frontend/          # React app → deploy to Vercel
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── dashboard/
-│   │   │   ├── expenses/
-│   │   │   ├── networth/
-│   │   │   └── shared/
-│   │   ├── hooks/
-│   │   ├── services/
-│   │   ├── store/
-│   │   └── utils/
-│   └── ...
-└── backend/           # Express API → deploy to Render
-    ├── src/
-    │   ├── controllers/
-    │   ├── routes/
-    │   ├── services/
-    │   ├── middleware/
-    │   └── config/
-    └── ...
+├── firebase.rules
+├── frontend/                        # → deployed to Vercel
+│   └── src/
+│       ├── components/
+│       │   ├── dashboard/           # DashboardPage
+│       │   ├── moneyflow/           # MoneyFlowPage, TransactionForm, AccountForm
+│       │   ├── networth/            # NetWorthPage (Portfolio), InvestmentForm
+│       │   └── shared/              # Layout, AuthPage, Modal, EmptyState
+│       ├── services/
+│       │   ├── api.js               # Axios with Firebase token injection
+│       │   └── firebase.js          # Firebase client SDK
+│       ├── store/
+│       │   ├── authStore.js         # Firebase Auth state
+│       │   ├── expenseStore.js      # Transactions + accounts
+│       │   └── investmentStore.js   # Holdings, quotes, snapshots, auto-snapshot
+│       └── utils/
+│           └── formatters.js        # SGD formatter, chart builders, category lists
+└── backend/                         # → deployed to Render
+    └── src/
+        ├── config/firebase.js       # Firebase Admin SDK
+        ├── middleware/
+        │   ├── auth.js              # Token verification
+        │   └── errorHandler.js      # Centralised error handler
+        ├── routes/                  # expenses.js, investments.js, networth.js
+        ├── controllers/             # Request handlers
+        └── services/
+            ├── expenseService.js    # Transactions + accounts CRUD, monthly summary
+            ├── investmentService.js # Holdings CRUD, Finnhub quotes, ticker search
+            └── networthService.js   # Net worth + snapshot history
 ```
 
-## How to run on local
+---
 
-### Prerequisites
-- Node.js 18+
-- Firebase project with Firestore + Auth enabled
-- A Yahoo Finance-compatible environment (backend handles this)
+## API Reference
 
-### 1. Clone and install
+All endpoints require `Authorization: Bearer <firebase_id_token>`.
 
-```bash
-git clone <your-repo>
-cd wealthwise
+### Transactions — `/api/expenses`
 
-# Install frontend deps
-cd frontend && npm install
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/expenses` | List transactions. Query: `?month=YYYY-MM` `?accountId=` `?type=income\|expense` |
+| POST | `/api/expenses` | Create. Body: `{ date, detail, type, category, amount, accountId }` |
+| PUT | `/api/expenses/:id` | Update |
+| DELETE | `/api/expenses/:id` | Delete |
+| GET | `/api/expenses/summary` | Monthly summary (12 months) with per-account P&L |
 
-# Install backend deps
-cd ../backend && npm install
-```
+### Accounts — `/api/expenses/accounts`
 
-### 2. Configure environment variables
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/expenses/accounts` | List accounts |
+| POST | `/api/expenses/accounts` | Create. Body: `{ name, type: bank\|savings\|cash\|credit }` |
+| PUT | `/api/expenses/accounts/:id` | Update |
+| DELETE | `/api/expenses/accounts/:id` | Delete |
 
-**frontend/.env**
-```
-VITE_FIREBASE_API_KEY=your_key
-VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
-VITE_API_BASE_URL=http://localhost:4000/api
-```
+### Investments — `/api/investments`
 
-**backend/.env**
-```
-PORT=4000
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_CLIENT_EMAIL=your_service_account_email
-FIREBASE_PRIVATE_KEY="your_private_key"
-ALLOWED_ORIGINS=http://localhost:5173,https://your-vercel-app.vercel.app
-```
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/investments` | List holdings |
+| POST | `/api/investments` | Add. Body: `{ ticker, shares, avgCost, name? }` |
+| PUT | `/api/investments/:id` | Update |
+| DELETE | `/api/investments/:id` | Remove |
+| GET | `/api/investments/quotes` | Live prices for all holdings via Finnhub |
+| GET | `/api/investments/search?q=` | Ticker autocomplete (5 results) |
 
-### 3. Firebase Setup
+### Net Worth — `/api/networth`
 
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Create a new project
-3. Enable **Authentication** → Email/Password
-4. Enable **Firestore Database** → Start in production mode
-5. Add Firestore security rules (see `firebase.rules`)
-6. Generate a **Service Account** key for the backend (Project Settings → Service Accounts)
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/networth` | Current net worth breakdown |
+| GET | `/api/networth/history` | All saved monthly snapshots |
+| POST | `/api/networth/snapshot` | Save snapshot. Body: `{ month: YYYY-MM, cash, investmentsValue }` |
 
-### 4. Run locally
+---
 
-```bash
-# Terminal 1 - Backend
-cd backend && npm run dev
+## Firestore Data Model
 
-# Terminal 2 - Frontend
-cd frontend && npm run dev
-```
-
-## Deployment
-
-### Frontend → Vercel
-
-```bash
-cd frontend
-npm run build
-# Push to GitHub and connect repo to Vercel
-# Set environment variables in Vercel dashboard
-```
-
-### Backend → Render
-
-1. Push backend to GitHub
-2. Create a new **Web Service** on Render
-3. Set build command: `npm install`
-4. Set start command: `npm start`
-5. Add all environment variables from `backend/.env`
-
-## Firestore Collections
+All data lives under `users/{uid}/` — each user can only read and write their own data (enforced by security rules).
 
 ```
 users/{uid}/
-  expenses/{expenseId}
-    - date: timestamp
-    - detail: string
-    - category: string
-    - amount: number
-    - createdAt: timestamp
+  accounts/{accountId}
+    name:       string
+    type:       "bank" | "savings" | "cash" | "credit"
+    currency:   "SGD"
+    createdAt:  timestamp
+
+  transactions/{txId}
+    detail:     string
+    category:   string
+    type:       "income" | "expense"
+    amount:     number
+    date:       timestamp
+    accountId:  string | null
+    createdAt:  timestamp
 
   investments/{investmentId}
-    - ticker: string
-    - shares: number
-    - avgCost: number
-    - addedAt: timestamp
+    ticker:     string       e.g. "AAPL", "D05.SI"
+    name:       string
+    shares:     number
+    avgCost:    number
+    addedAt:    timestamp
 
-  netWorthSnapshots/{snapshotId}
-    - month: string (YYYY-MM)
-    - cash: number
-    - investmentsValue: number
-    - totalNetWorth: number
-    - createdAt: timestamp
+  netWorthSnapshots/{YYYY-MM}
+    month:            string
+    cash:             number
+    investmentsValue: number
+    totalNetWorth:    number
+    createdAt:        timestamp
 ```
 
-## API Endpoints
+---
 
-### Expenses
-- `GET    /api/expenses` — list expenses (supports `?month=YYYY-MM`)
-- `POST   /api/expenses` — create expense
-- `PUT    /api/expenses/:id` — update expense
-- `DELETE /api/expenses/:id` — delete expense
-- `GET    /api/expenses/summary` — monthly summary
+## Environment Variables
 
-### Investments
-- `GET    /api/investments` — list investments
-- `POST   /api/investments` — add investment
-- `PUT    /api/investments/:id` — update investment
-- `DELETE /api/investments/:id` — remove investment
-- `GET    /api/investments/quotes` — fetch live quotes from Yahoo Finance
+### `backend/.env`
 
-### Net Worth
-- `GET    /api/networth` — current net worth breakdown
-- `GET    /api/networth/history` — monthly history snapshots
-- `POST   /api/networth/snapshot` — save monthly snapshot
+```env
+PORT=4000
+NODE_ENV=development
+
+# Firebase Admin — Firebase Console → Project Settings → Service Accounts → Generate key
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
+
+# Finnhub — finnhub.io (free, no credit card needed)
+FINNHUB_API_KEY=your_finnhub_key
+
+# CORS — comma-separated
+ALLOWED_ORIGINS=http://localhost:5173,https://your-app.vercel.app
+```
+
+### `frontend/.env`
+
+```env
+# Firebase Web App — Firebase Console → Project Settings → Your Apps → Web App
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+
+# Backend URL
+VITE_API_BASE_URL=http://localhost:4000/api
+```
+
+---
+
+## Local Development
+
+**Requires Node.js 22 LTS** — earlier versions cause Finnhub to fail with `getSetCookie is not a function`.
+
+```bash
+# Terminal 1 — backend
+cd backend
+cp .env.example .env   # fill in keys
+npm install
+npm run dev            # http://localhost:4000
+
+# Terminal 2 — frontend
+cd frontend
+cp .env.example .env   # fill in keys
+npm install
+npm run dev            # http://localhost:5173
+```
+
+Publish `firebase.rules` in the Firebase Console under Firestore → Rules before running.
+
+---
+
+## Deployment
+
+### Backend → Render
+
+1. Push repo to GitHub (private)
+2. Render → New → Web Service → connect repo
+3. Root Directory: `backend` · Build: `npm install` · Start: `npm start`
+4. Environment variables: all from `backend/.env` plus `NODE_VERSION=22`
+5. Deploy → copy the `https://your-app.onrender.com` URL
+
+### Frontend → Vercel
+
+1. Vercel → New Project → import repo
+2. Root Directory: `frontend`
+3. Add all `frontend/.env` variables; set `VITE_API_BASE_URL` to your Render URL + `/api`
+4. Deploy
+
+### Final wiring
+
+- Render: update `ALLOWED_ORIGINS` to include your Vercel URL
+- Firebase Console → Authentication → Settings → Authorised domains → add your Vercel domain
+
+---
+
+## Notes
+
+**Currency** — All amounts display in SGD. Stock prices come back in the exchange's native currency (USD for NYSE/NASDAQ, SGD for SGX). Use `.SI` suffix for SGX stocks: `D05.SI` (DBS), `ES3.SI` (STI ETF), `C31.SI` (CapitaLand).
+
+**Auto-snapshots** — WealthWise silently saves a portfolio snapshot for the previous month on your first dashboard visit each month. This is what fills in the net worth history chart over time. No action needed.
+
+**Render cold starts** — Free tier sleeps after 15 minutes idle. First request takes ~30 seconds. The API timeout is set to 35 seconds to handle this. Upgrade to Render Starter ($7/mo) to eliminate cold starts.
+
+**Finnhub rate limits** — Free tier: 60 calls/min. Quotes are fetched sequentially with a 120ms gap between tickers. If you have many holdings a full refresh takes a few extra seconds — this is normal.
