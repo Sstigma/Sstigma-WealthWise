@@ -1,12 +1,12 @@
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import useAuthStore from '../../store/authStore';
+import { useState } from "react";
+import { Navigate } from "react-router-dom";
+import useAuthStore from "../../store/authStore";
 
 export default function AuthPage() {
   const { user, signIn, signUp, error, clearError } = useAuthStore();
-  const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState("signin"); // 'signin' | 'signup'
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   if (user) return <Navigate to="/dashboard" replace />;
@@ -16,7 +16,7 @@ export default function AuthPage() {
     clearError();
     setSubmitting(true);
     try {
-      if (mode === 'signin') await signIn(email, password);
+      if (mode === "signin") await signIn(email, password);
       else await signUp(email, password);
     } catch {
       // error handled by store
@@ -27,7 +27,7 @@ export default function AuthPage() {
 
   const toggle = () => {
     clearError();
-    setMode((m) => (m === 'signin' ? 'signup' : 'signin'));
+    setMode((m) => (m === "signin" ? "signup" : "signin"));
   };
 
   return (
@@ -44,13 +44,17 @@ export default function AuthPage() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent/20 border border-accent/30 mb-4">
             <span className="text-2xl">💰</span>
           </div>
-          <h1 className="font-display text-3xl text-text-primary">WealthWise</h1>
-          <p className="text-text-secondary text-sm mt-1">Your personal finance dashboard</p>
+          <h1 className="font-display text-3xl text-text-primary">
+            WealthWise
+          </h1>
+          <p className="text-text-secondary text-sm mt-1">
+            Your personal finance dashboard
+          </p>
         </div>
 
         <div className="card">
           <h2 className="text-lg font-semibold text-text-primary mb-6">
-            {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+            {mode === "signin" ? "Welcome" : "Create your account"}
           </h2>
 
           {error && (
@@ -82,7 +86,9 @@ export default function AuthPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                autoComplete={
+                  mode === "signin" ? "current-password" : "new-password"
+                }
               />
             </div>
             <button
@@ -93,20 +99,25 @@ export default function AuthPage() {
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  {mode === 'signin' ? 'Signing in…' : 'Creating account…'}
+                  {mode === "signin" ? "Signing in…" : "Creating account…"}
                 </span>
-              ) : mode === 'signin' ? (
-                'Sign In'
+              ) : mode === "signin" ? (
+                "Sign In"
               ) : (
-                'Create Account'
+                "Create Account"
               )}
             </button>
           </form>
 
           <p className="text-center text-text-secondary text-sm mt-5">
-            {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-            <button onClick={toggle} className="text-accent hover:text-accent-light transition-colors">
-              {mode === 'signin' ? 'Sign up' : 'Sign in'}
+            {mode === "signin"
+              ? "Don't have an account? "
+              : "Already have an account? "}
+            <button
+              onClick={toggle}
+              className="text-accent hover:text-accent-light transition-colors"
+            >
+              {mode === "signin" ? "Sign up" : "Sign in"}
             </button>
           </p>
         </div>
