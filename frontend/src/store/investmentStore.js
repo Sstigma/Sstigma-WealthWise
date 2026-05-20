@@ -114,7 +114,7 @@ const useInvestmentStore = create((set, get) => ({
       if (quotes.length === 0) return;
 
       const investmentsValue = quotes.reduce(
-        (s, q) => s + (q.marketValue ?? q.costBasis),
+        (s, q) => s + (q.marketValueSGD ?? q.costBasisSGD ?? 0),
         0,
       );
 

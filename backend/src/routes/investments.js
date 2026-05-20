@@ -15,6 +15,7 @@ const investmentValidation = [
 
 router.get('/', controller.listInvestments);
 router.get('/quotes', controller.getLiveQuotes);
+router.get('/search', controller.searchTickers);
 router.post('/', investmentValidation, controller.createInvestment);
 router.put('/:id', controller.updateInvestment);
 router.delete('/:id', controller.deleteInvestment);

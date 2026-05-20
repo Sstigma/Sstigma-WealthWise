@@ -37,10 +37,24 @@ const getLiveQuotes = asyncHandler(async (req, res) => {
   res.json({ data: quotes });
 });
 
+const searchTickers = asyncHandler(async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  const rawLimit = Number(req.query.limit);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 20) : 5;
+
+  if (!query) {
+    return res.json({ data: [] });
+  }
+
+  const results = await investmentService.searchTickers(query, limit);
+  res.json({ data: results });
+});
+
 module.exports = {
   listInvestments,
   createInvestment,
   updateInvestment,
   deleteInvestment,
   getLiveQuotes,
+  searchTickers,
 };
