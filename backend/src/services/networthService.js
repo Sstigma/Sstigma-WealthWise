@@ -13,7 +13,7 @@ function userNetworthRef(uid) {
 /**
  * Compute the current net worth breakdown:
  *  - cash = total income minus total expenses (current month YTD approximation)
- *  - investments = live market value of portfolio
+ *  - investments = live market value of portfolio in SGD
  *  - totalNetWorth = cash + investments
  */
 async function getCurrentNetWorth(uid) {
@@ -23,7 +23,7 @@ async function getCurrentNetWorth(uid) {
   ]);
 
   const investmentsValue = quotes.reduce(
-    (sum, q) => sum + (q.marketValue ?? q.costBasis),
+    (sum, q) => sum + (q.marketValueSGD ?? q.costBasisSGD ?? 0),
     0,
   );
   const totalExpenses = monthlySummaries.reduce((sum, m) => sum + m.total, 0);

@@ -82,9 +82,9 @@ export default function DashboardPage() {
     [summary],
   );
 
-  // Portfolio live value
+  // Portfolio live value in SGD, matching the Investment tab.
   const totalPortfolio = quotes.reduce(
-    (s, q) => s + (q.marketValue ?? q.costBasis),
+    (s, q) => s + (q.marketValueSGD ?? q.costBasisSGD ?? 0),
     0,
   );
 
@@ -427,7 +427,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-mono text-text-primary">
-                      {formatCurrency(q.marketValue)}
+                      {formatCurrency(q.marketValueSGD ?? q.costBasisSGD)}
                     </p>
                     {q.unrealizedPnLPct != null && (
                       <p
