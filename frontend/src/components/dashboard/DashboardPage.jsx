@@ -28,6 +28,7 @@ export default function DashboardPage() {
     fetchSummary,
     fetchTransactions,
     fetchAccounts,
+    accounts,
   } = useExpenseStore();
 
   const {
@@ -76,19 +77,23 @@ export default function DashboardPage() {
   const totalExpenses = thisMonthData?.totalExpenses ?? 0;
   const netPL = thisMonthData?.netPL ?? 0;
 
-  // Cash = running total of all income minus all expenses across all time
-  const totalCash = useMemo(
-    () => summary.reduce((acc, s) => acc + s.netPL, 0),
-    [summary],
-  );
+  // Cash = sum of all account opening balances + cumulative income − expenses from transactions
+  const totalCash = useMemo(() => {
+    const totalOpening = accounts.reduce(
+      (s, a) => s + (a.openingBalance ?? 0),
+      0,
+    );
+    const totalTxDelta = summary.reduce((acc, s) => acc + s.netPL, 0);
+    return totalOpening + totalTxDelta;
+  }, [accounts, summary]);
 
-  // Portfolio live value in SGD, matching the Investment tab.
+  // Portfolio live value in SGD (each holding converted from native currency)
   const totalPortfolio = quotes.reduce(
-    (s, q) => s + (q.marketValueSGD ?? q.costBasisSGD ?? 0),
+    (s, q) => s + (q.marketValueSGD ?? q.marketValue ?? q.costBasis),
     0,
   );
 
-  // Net Worth = cash on hand + live portfolio value
+  // Net Worth = cash across all banks + live portfolio in SGD
   const totalNetWorth = totalCash + totalPortfolio;
 
   // ── Net Worth over 6 months chart ─────────────────────────────────────────
@@ -163,40 +168,34 @@ export default function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {/* Net Worth = cash + portfolio — computed live, no API call needed */}
         <div className="stat-card border-accent/30 bg-accent/5">
-          <span className="stat-label">Net Worth</span>
+          <span className="stat-label">Net Worth (SGD)</span>
           <span className="stat-value text-accent-light">
             {formatCurrency(totalNetWorth)}
           </span>
-          <span className="text-xs text-text-muted">cash + investments</span>
+          <span className="text-xs text-text-muted">
+            banks + investments (SGD)
+          </span>
         </div>
         <div className="stat-card">
-          <span className="stat-label">Portfolio</span>
+          <span className="stat-label">Portfolio (SGD)</span>
           <span className="stat-value">{formatCurrency(totalPortfolio)}</span>
           <span className="text-xs text-text-muted">
-            {quotes.length} holdings
+            {quotes.length} holdings · converted
           </span>
         </div>
         <div className="stat-card">
-          <span className="stat-label">
-            Income — {formatMonth(currentMonth)}
-          </span>
-          <span className="stat-value text-green">
-            {formatCurrency(totalIncome)}
-          </span>
+          <span className="stat-label">Cash Net Worth (SGD)</span>
+          <span className="stat-value">{formatCurrency(totalCash)}</span>
         </div>
         <div className="stat-card">
           <span className="stat-label">
-            Expenses — {formatMonth(currentMonth)}
-          </span>
-          <span className="stat-value text-red">
-            {formatCurrency(totalExpenses)}
+            Net Cash P&L (SGD) — {formatMonth(currentMonth)}
           </span>
           <span
-            className={`text-xs font-mono ${netPL >= 0 ? "text-green" : "text-red"}`}
+            className={`stat-value ${netPL >= 0 ? "text-green" : "text-red"}`}
           >
-            Net {formatCurrency(netPL)}
+            {formatCurrency(netPL)}
           </span>
         </div>
       </div>
@@ -427,7 +426,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-mono text-text-primary">
-                      {formatCurrency(q.marketValueSGD ?? q.costBasisSGD)}
+                      {formatCurrency(q.marketValue)}
                     </p>
                     {q.unrealizedPnLPct != null && (
                       <p

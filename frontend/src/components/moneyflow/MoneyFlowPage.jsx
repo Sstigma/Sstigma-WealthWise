@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   Cell, Legend, AreaChart, Area,
@@ -12,16 +12,16 @@ import {
   EXPENSE_CATEGORIES, INCOME_CATEGORIES, CATEGORY_COLORS,
   ACCOUNT_TYPES, currentYearMonth, buildMonthlyChartData,
 } from '../../utils/formatters';
-
+ 
 const ACCOUNT_TYPE_ICONS = { bank: '🏦', savings: '🏧', cash: '💵', credit: '💳' };
-
+ 
 export default function MoneyFlowPage() {
   const {
     transactions, summary, accounts, loading,
     fetchTransactions, fetchSummary, fetchAccounts,
     deleteTransaction, deleteAccount,
   } = useExpenseStore();
-
+ 
   const [selectedMonth, setSelectedMonth]   = useState(currentYearMonth());
   const [selectedAccount, setSelectedAccount] = useState('all');
   const [typeFilter, setTypeFilter]         = useState('all'); // all | income | expense
@@ -31,64 +31,74 @@ export default function MoneyFlowPage() {
   const [editAccount, setEditAccount]       = useState(null);
   const [deletingId, setDeletingId]         = useState(null);
   const [activeTab, setActiveTab]           = useState('transactions'); // transactions | accounts
-
+ 
   useEffect(() => {
     fetchAccounts();
     fetchSummary();
   }, []);
-
+ 
   useEffect(() => {
     fetchTransactions(
       selectedMonth,
       selectedAccount !== 'all' ? selectedAccount : undefined
     );
   }, [selectedMonth, selectedAccount]);
-
+ 
   // ── Derived data ────────────────────────────────────────────────────────────
   const currentSummary = summary.find(s => s.month === selectedMonth);
   const totalIncome    = currentSummary?.totalIncome   ?? 0;
   const totalExpenses  = currentSummary?.totalExpenses ?? 0;
   const netPL          = currentSummary?.netPL         ?? 0;
-
+ 
   // Per-account P&L for the selected month
   const accountPL = currentSummary?.byAccount ?? {};
-
+ 
+  // Cash Net Worth = sum of each account's opening balance + all-time income − expenses
+  // Opening balances come from accounts list; transaction delta from full summary
+  const cashNetWorth = useMemo(() => {
+    // Sum all opening balances across accounts
+    const totalOpening = accounts.reduce((s, a) => s + (a.openingBalance ?? 0), 0);
+    // Add cumulative income minus expenses from all recorded months
+    const totalTxDelta = summary.reduce((s, m) => s + m.netPL, 0);
+    return totalOpening + totalTxDelta;
+  }, [accounts, summary]);
+ 
   // Filtered transactions list
   const filtered = transactions.filter(t =>
     typeFilter === 'all' ? true : t.type === typeFilter
   );
-
+ 
   // Trend chart: last 6 months income vs expenses
   const trendData = buildMonthlyChartData(summary, 6);
-
+ 
   // Month options
   const monthOptions = Array.from(
     new Set([...summary.map(s => s.month), currentYearMonth()])
   ).sort((a, b) => b.localeCompare(a));
-
+ 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleDeleteTx = async (id) => {
     if (!confirm('Delete this transaction?')) return;
     setDeletingId(id);
     try { await deleteTransaction(id); } finally { setDeletingId(null); }
   };
-
+ 
   const handleDeleteAccount = async (id) => {
     if (!confirm('Delete this account? Transactions linked to it will become unassigned.')) return;
     setDeletingId(id);
     try { await deleteAccount(id); } finally { setDeletingId(null); }
   };
-
+ 
   const openEditTx = (tx) => { setEditTx(tx); setShowTxForm(true); };
   const closeTxForm = () => { setShowTxForm(false); setEditTx(null); };
   const openEditAccount = (acc) => { setEditAccount(acc); setShowAccountForm(true); };
   const closeAccountForm = () => { setShowAccountForm(false); setEditAccount(null); };
-
+ 
   const accountName = (id) => accounts.find(a => a.id === id)?.name ?? '—';
-
+ 
   return (
     <div className="space-y-6">
-
+ 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -104,20 +114,35 @@ export default function MoneyFlowPage() {
           </button>
         </div>
       </div>
-
+ 
       {/* ── Overall stat cards ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total Income" value={formatCurrency(totalIncome)} positive />
-        <StatCard label="Total Expenses" value={formatCurrency(totalExpenses)} negative />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard
-          label="Net P&L"
+          label={`Income — ${formatMonth(selectedMonth)}`}
+          value={formatCurrency(totalIncome)}
+          positive
+        />
+        <StatCard
+          label={`Expenses — ${formatMonth(selectedMonth)}`}
+          value={formatCurrency(totalExpenses)}
+          negative
+        />
+        <StatCard
+          label={`Net P&L — ${formatMonth(selectedMonth)}`}
           value={formatCurrency(netPL)}
-          accent
           positive={netPL >= 0}
           negative={netPL < 0}
         />
+        <StatCard
+          label="Cash Net Worth"
+          value={formatCurrency(cashNetWorth)}
+          accent
+          positive={cashNetWorth >= 0}
+          negative={cashNetWorth < 0}
+          sub="opening balance + transactions"
+        />
       </div>
-
+ 
       {/* ── Per-Account P&L cards ───────────────────────────────────────────── */}
       {accounts.length > 0 && (
         <div>
@@ -126,15 +151,23 @@ export default function MoneyFlowPage() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {accounts.map(acc => {
-              const pl   = accountPL[acc.name] ?? { income: 0, expenses: 0, netPL: 0 };
-              const icon = ACCOUNT_TYPE_ICONS[acc.type] || '🏦';
+              const pl      = accountPL[acc.name] ?? { income: 0, expenses: 0, netPL: 0 };
+              const opening = acc.openingBalance ?? 0;
+              const balance = opening + pl.income - pl.expenses; // true running balance
+              const icon    = ACCOUNT_TYPE_ICONS[acc.type] || '🏦';
               return (
                 <div key={acc.id} className="card hover:border-accent/30 transition-colors">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-3">
                     <span className="text-lg">{icon}</span>
                     <p className="text-sm font-medium text-text-primary truncate">{acc.name}</p>
                   </div>
                   <div className="space-y-1 text-xs">
+                    {opening !== 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-text-muted">Opening</span>
+                        <span className="text-text-secondary font-mono">{formatCurrency(opening)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-text-muted">Income</span>
                       <span className="text-green font-mono">{formatCurrency(pl.income)}</span>
@@ -144,9 +177,9 @@ export default function MoneyFlowPage() {
                       <span className="text-red font-mono">{formatCurrency(pl.expenses)}</span>
                     </div>
                     <div className="flex justify-between border-t border-border pt-1 mt-1">
-                      <span className="text-text-secondary font-medium">Net</span>
-                      <span className={`font-mono font-semibold ${pl.netPL >= 0 ? 'text-green' : 'text-red'}`}>
-                        {formatCurrency(pl.netPL)}
+                      <span className="text-text-secondary font-medium">Balance</span>
+                      <span className={`font-mono font-semibold ${balance >= 0 ? 'text-green' : 'text-red'}`}>
+                        {formatCurrency(balance)}
                       </span>
                     </div>
                   </div>
@@ -156,7 +189,7 @@ export default function MoneyFlowPage() {
           </div>
         </div>
       )}
-
+ 
       {/* ── Trend chart ─────────────────────────────────────────────────────── */}
       <div className="card">
           <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-widest mb-4">
@@ -177,7 +210,7 @@ export default function MoneyFlowPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-
+ 
       {/* ── Tabs: Transactions | Accounts ───────────────────────────────────── */}
       <div className="flex gap-1 p-1 bg-surface rounded-xl w-fit">
         {['transactions', 'accounts'].map(tab => (
@@ -189,7 +222,7 @@ export default function MoneyFlowPage() {
           </button>
         ))}
       </div>
-
+ 
       {/* ── TRANSACTIONS TAB ────────────────────────────────────────────────── */}
       {activeTab === 'transactions' && (
         <div className="card">
@@ -200,14 +233,14 @@ export default function MoneyFlowPage() {
               value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}>
               {monthOptions.map(m => <option key={m} value={m}>{formatMonth(m)}</option>)}
             </select>
-
+ 
             {/* Account filter */}
             <select className="input w-auto text-sm"
               value={selectedAccount} onChange={e => setSelectedAccount(e.target.value)}>
               <option value="all">All Accounts</option>
               {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
-
+ 
             {/* Type filter pills */}
             <div className="flex gap-1">
               {[['all','All'],['income','Income'],['expense','Expenses']].map(([val, label]) => (
@@ -223,10 +256,10 @@ export default function MoneyFlowPage() {
                 </button>
               ))}
             </div>
-
+ 
             <span className="text-xs text-text-muted ml-auto">{filtered.length} transactions</span>
           </div>
-
+ 
           {/* Table */}
           {loading ? (
             <div className="py-12 flex justify-center">
@@ -321,7 +354,7 @@ export default function MoneyFlowPage() {
           )}
         </div>
       )}
-
+ 
       {/* ── ACCOUNTS TAB ────────────────────────────────────────────────────── */}
       {activeTab === 'accounts' && (
         <div className="card">
@@ -337,15 +370,17 @@ export default function MoneyFlowPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
-                    {['Account','Type','Income (this month)','Expenses (this month)','Net P&L',''].map(h => (
+                    {['Account','Type','Opening Balance','Income (this month)','Expenses (this month)','Current Balance',''].map(h => (
                       <th key={h} className={`py-3 px-3 text-text-muted font-medium uppercase text-xs tracking-wider ${h === '' ? 'text-right' : 'text-left'}`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {accounts.map(acc => {
-                    const pl   = accountPL[acc.name] ?? { income: 0, expenses: 0, netPL: 0 };
-                    const icon = ACCOUNT_TYPE_ICONS[acc.type] || '🏦';
+                    const pl        = accountPL[acc.name] ?? { income: 0, expenses: 0, netPL: 0 };
+                    const opening   = acc.openingBalance ?? 0;
+                    const balance   = opening + pl.income - pl.expenses;
+                    const icon      = ACCOUNT_TYPE_ICONS[acc.type] || '🏦';
                     const typeLabel = ACCOUNT_TYPES.find(t => t.value === acc.type)?.label ?? acc.type;
                     return (
                       <tr key={acc.id} className="hover:bg-surface/50 transition-colors">
@@ -356,10 +391,11 @@ export default function MoneyFlowPage() {
                           </div>
                         </td>
                         <td className="py-3 px-3 text-text-secondary text-xs">{typeLabel}</td>
+                        <td className="py-3 px-3 font-mono text-text-secondary">{formatCurrency(opening)}</td>
                         <td className="py-3 px-3 font-mono text-green">{formatCurrency(pl.income)}</td>
                         <td className="py-3 px-3 font-mono text-red">{formatCurrency(pl.expenses)}</td>
-                        <td className={`py-3 px-3 font-mono font-semibold ${pl.netPL >= 0 ? 'text-green' : 'text-red'}`}>
-                          {formatCurrency(pl.netPL)}
+                        <td className={`py-3 px-3 font-mono font-semibold ${balance >= 0 ? 'text-green' : 'text-red'}`}>
+                          {formatCurrency(balance)}
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center justify-end gap-1">
@@ -382,7 +418,7 @@ export default function MoneyFlowPage() {
           )}
         </div>
       )}
-
+ 
       {/* ── Monthly summary strip ─────────────────────────────────────────── */}
       {summary.length > 0 && (
         <div className="card">
@@ -404,22 +440,23 @@ export default function MoneyFlowPage() {
           </div>
         </div>
       )}
-
+ 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
       {showTxForm      && <TransactionForm transaction={editTx}      onClose={closeTxForm} />}
       {showAccountForm && <AccountForm     account={editAccount}     onClose={closeAccountForm} />}
     </div>
   );
 }
-
+ 
 // ── Sub-components ────────────────────────────────────────────────────────────
-function StatCard({ label, value, accent, positive, negative }) {
+function StatCard({ label, value, accent, positive, negative, sub }) {
   return (
     <div className={`stat-card ${accent ? 'border-accent/30 bg-accent/5' : ''}`}>
       <span className="stat-label">{label}</span>
       <span className={`stat-value ${positive ? 'text-green' : negative ? 'text-red' : ''}`}>
         {value}
       </span>
+      {sub && <span className="text-xs text-text-muted">{sub}</span>}
     </div>
   );
 }
