@@ -25,10 +25,10 @@ export default function DashboardPage() {
   const {
     summary,
     transactions,
+    accounts,
     fetchSummary,
     fetchTransactions,
     fetchAccounts,
-    accounts,
   } = useExpenseStore();
 
   const {
@@ -61,13 +61,16 @@ export default function DashboardPage() {
     const sortedSummary = [...summary].sort((a, b) =>
       a.month.localeCompare(b.month),
     );
-    let running = 0;
+    const totalOpening = accounts.reduce(
+      (s, a) => s + (a.openingBalance ?? 0),
+      0,
+    );
+    let running = totalOpening;
     const cashByMonth = {};
     sortedSummary.forEach((s) => {
       running += s.netPL;
       cashByMonth[s.month] = running;
     });
-
     autoSnapshotPreviousMonth(cashByMonth);
   }, [quotes, summary]);
 
@@ -79,12 +82,8 @@ export default function DashboardPage() {
 
   // Cash = sum of all account opening balances + cumulative income − expenses from transactions
   const totalCash = useMemo(() => {
-    const totalOpening = accounts.reduce(
-      (s, a) => s + (a.openingBalance ?? 0),
-      0,
-    );
-    const totalTxDelta = summary.reduce((acc, s) => acc + s.netPL, 0);
-    return totalOpening + totalTxDelta;
+    const totalOpening = accounts.reduce((s, a) => s + (a.openingBalance ?? 0), 0);
+    return totalOpening + summary.reduce((acc, s) => acc + s.netPL, 0);
   }, [accounts, summary]);
 
   // Portfolio live value in SGD (each holding converted from native currency)
@@ -108,7 +107,11 @@ export default function DashboardPage() {
     const sortedSummary = [...summary].sort((a, b) =>
       a.month.localeCompare(b.month),
     );
-    let runningCash = 0;
+    const totalOpening = accounts.reduce(
+      (s, a) => s + (a.openingBalance ?? 0),
+      0,
+    );
+    let runningCash = totalOpening;
     const cashByMonth = {};
     sortedSummary.forEach((s) => {
       runningCash += s.netPL;
